@@ -1,4 +1,6 @@
 #include <Arduino.h>
+#include <WiFi.h>
+#include <WiFiUdp.h>
 
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps612.h"
@@ -10,6 +12,7 @@
 #include "Menu.h"
 #include "ImuHelpers.h"
 #include "QuaternionOperations.h"
+#include "wifi_credentials.h"
 
 MPU6050 mpu;
 
@@ -42,6 +45,7 @@ enum Mode
 {
     MODE_IDLE,
     MODE_ALL,
+    MODE_WIFI,
     MODE_YAW_PITCH_ROLL,
     MODE_ACCELEROMETER,
     MODE_GYROSCOPE,
@@ -49,22 +53,24 @@ enum Mode
     MODE_SET_ACCEL_RANGE
 };
 
-Mode currentMode = MODE_IDLE; // Default mode
+Mode currentMode = MODE_ALL; // Default mode
 String currentCommand;
 bool commandToProcess = false;
 
 // Menu items
 
 MenuItem mainMenu[] = {
-    {'0', "Stream everything\t\t\t\t([Enter] to exit)", []()
+    {'0', "Stream everything (UDP)\t\t\t\t([Enter] to exit)", []()
+     { currentMode = MODE_WIFI; }},
+    {'1', "Stream everything (Serial)\t\t\t\t([Enter] to exit)", []()
      { currentMode = MODE_ALL; }},
-    {'1', "Stream accelerometer readings (g)\t\t([Enter] to exit)", []()
+    {'2', "Stream accelerometer readings (g)\t\t([Enter] to exit)", []()
      { currentMode = MODE_ACCELEROMETER; }},
-    {'2', "Stream gyroscope readings (dg/s)\t\t([Enter] to exit)", []()
+    {'3', "Stream gyroscope readings (dg/s)\t\t([Enter] to exit)", []()
      { currentMode = MODE_GYROSCOPE; }},
-    {'3', "Stream yaw, pitch and roll readings (dg)\t([Enter] to exit)", []()
+    {'4', "Stream yaw, pitch and roll readings (dg)\t([Enter] to exit)", []()
      { currentMode = MODE_YAW_PITCH_ROLL; }},
-    {'4', "Get accel and gyro full scale ranges", []()
+    {'5', "Get accel and gyro full scale ranges", []()
      {
          Serial.print("\n\tAFS_SEL: ");
          Serial.println(mpu.getFullScaleAccelRange());
@@ -72,12 +78,12 @@ MenuItem mainMenu[] = {
          Serial.println(mpu.getFullScaleGyroRange());
          Serial.print("\n[Enter] to exit");
      }},
-    {'5', "Set accelerometer full scale range\t\t(Enter range after selection, [Enter] to exit)", []()
+    {'6', "Set accelerometer full scale range\t\t(Enter range after selection, [Enter] to exit)", []()
      {
          Serial.print("Enter the accelerometer full scale range (0-3): ");
          currentMode = MODE_SET_ACCEL_RANGE;
      }},
-    {'6', "Set gyroscope full scale range\t\t(Enter range after selection, [Enter] to exit)", []()
+    {'7', "Set gyroscope full scale range\t\t(Enter range after selection, [Enter] to exit)", []()
      {
          Serial.print("Enter the gyroscope full scale range (0-3): ");
          currentMode = MODE_SET_GYRO_RANGE;
@@ -85,6 +91,19 @@ MenuItem mainMenu[] = {
 };
 
 const size_t mainMenuSize = sizeof(mainMenu) / sizeof(mainMenu[0]);
+
+// ===================================================
+// ===               WIFI VARIABLES                ===
+// ===================================================
+
+// WiFi credentials
+const char *ssid = WIFI_SSID;
+const char *password = WIFI_PASSWORD;
+
+// UDP
+WiFiUDP udp;
+const char *udpAddress = RECEIVER_IP; // Replace with your computer's IP address
+const int udpPort = 4210;             // Choose an appropriate port number
 
 // ================================================================
 // ===               INTERRUPT DETECTION ROUTINE                ===
@@ -151,8 +170,8 @@ void setup()
     if (devStatus == 0)
     {
         // Calibration Time: generate offsets and calibrate our MPU6050
-        // mpu.CalibrateAccel(10);
-        // mpu.CalibrateGyro(10);
+        // mpu.CalibrateAccel(6);
+        // mpu.CalibrateGyro(6);
         Serial.println();
         mpu.PrintActiveOffsets();
         // turn on the DMP, now that it's ready
@@ -178,6 +197,21 @@ void setup()
 
         delay(2000);
         displayMenu();
+
+        // Connect to WiFi
+        WiFi.begin(ssid, password);
+        Serial.print("Connecting to WiFi");
+        while (WiFi.status() != WL_CONNECTED)
+        {
+            delay(500);
+            Serial.print(".");
+        }
+        Serial.println("WiFi connected");
+        Serial.println("IP address: ");
+        Serial.println(WiFi.localIP());
+
+        // Initialize UDP
+        udp.begin(udpPort);
     }
     else
     {
