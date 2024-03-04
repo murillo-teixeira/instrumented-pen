@@ -1,2 +1,12 @@
 # Wi-Fi Credentials
 **/wifi_credentials.h
+
+# Test scripts
+fw_tests/
+
+__pycache__/
+.vscode/
+
+venv/
+
+data/

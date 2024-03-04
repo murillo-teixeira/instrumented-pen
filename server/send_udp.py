@@ -1,26 +1,23 @@
 import socket
-import time
 
-# The target IP address and port number should match your UDP server settings
-udp_ip = "127.0.0.1"  # Use localhost to communicate within the same machine
-udp_port = 4210  # Ensure this matches the port number of your UDP server
+# The IP address of the ESP32-C3 or the broadcast address
+# Use the broadcast address if you want to send to all devices on the network
+# For example, '192.168.1.255' for a typical home network
+udp_ip_address = "192.168.10.7"
+udp_port = 4210  # The port number should match the one used by the ESP32-C3
 
-# Create a UDP socket
+# Creating a socket for UDP
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-# Optionally, you can set a timeout for the socket operations
-# sock.settimeout(2.0)  # 2 seconds timeout
+# Enable broadcasting mode
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-def send_data(message):
-    print("Sending message:", message)
-    sock.sendto(message.encode(), (udp_ip, udp_port))
+message = "print_hi"
 
 try:
-    while True:
-        # Send data to the server at 100Hz (every 10ms)
-        send_data("Hello, World!")
-        time.sleep(0.01)  # 10ms delay to simulate 100Hz data rate
-except KeyboardInterrupt:
-    print("UDP client stopped.")
+    # Sending the message
+    sock.sendto(message.encode(), (udp_ip_address, udp_port))
+    print(f"Message '{message}' sent to {udp_ip_address}:{udp_port}")
 finally:
+    # Close the socket
     sock.close()

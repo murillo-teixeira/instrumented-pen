@@ -1,7 +1,7 @@
 BOARD := esp32:esp32:XIAO_ESP32C3
-PORT := COM8
-# SKETCH := fw/fw.ino
-SKETCH := wifi_udp/wifi_udp.ino
+PORT := COM10
+SKETCH := fw2/fw2.ino
+# SKETCH := fw_tests/debug_hw/debug_hw.ino
 BUILD_DIR := build
 
 .PHONY: all compile upload clean serial
