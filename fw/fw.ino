@@ -15,6 +15,8 @@ Led led(LED_R, LED_G, LED_B);
 
 // Button
 #define BUTTON_PIN D1
+unsigned long buttonPressStartTime = 0; // Time when the button was pressed
+bool readyForDeepSleep = false;         // Flag to indicate ready for deep sleep
 
 // Variables for MPU6050
 float ypr[3];   // Yaw, Pitch, Roll
@@ -63,6 +65,7 @@ void setup()
     Serial.println("Connected to serial");
 
     pinMode(BUTTON_PIN, INPUT_PULLUP);
+    esp_deep_sleep_enable_gpio_wakeup((1ULL << 3), ESP_GPIO_WAKEUP_GPIO_LOW);
 
     mpuWrapper.initialize();
 }
@@ -132,6 +135,9 @@ void loop()
     default:
         break;
     }
+
+    handleButtonPress();
+
     delay(1);
 }
 
@@ -219,4 +225,30 @@ float getBatteryVoltage()
     }
     float Vbattf = 2 * Vbatt / 16 / 1000.0;
     return Vbattf;
+}
+
+void handleButtonPress()
+{
+    if (!digitalRead(BUTTON_PIN))
+    { // If the button is pressed
+        if (buttonPressStartTime == 0)
+        {                                    // If this is the start of the press
+            buttonPressStartTime = millis(); // Record press start time
+        }
+        else if (millis() - buttonPressStartTime > 5000)
+        {                             // If pressed for more than 5 seconds
+            readyForDeepSleep = true; // Set the flag indicating ready for deep sleep
+        }
+    }
+    else
+    { // If the button is not pressed
+        if (readyForDeepSleep)
+        { // If the button was pressed long enough and now released
+            Serial.println("Entering deep sleep mode...");
+            esp_deep_sleep_start(); // Enter deep sleep mode
+        }
+        // Reset the start time and the flag regardless of whether deep sleep was triggered
+        buttonPressStartTime = 0;
+        readyForDeepSleep = false;
+    }
 }
