@@ -3,9 +3,8 @@
 #include <WiFiUdp.h>
 
 #include "MPU6050Wrapper.h"
-// #include "LedControl.h"
-#include "wifi_credentials.h"
 #include "Led.h"
+#include "wifi_credentials.h"
 
 // LED object
 #define LED_B D8
@@ -13,6 +12,9 @@
 #define LED_R D10
 
 Led led(LED_R, LED_G, LED_B);
+
+// Button
+#define BUTTON_PIN D1
 
 // Variables for MPU6050
 float ypr[3];   // Yaw, Pitch, Roll
@@ -32,6 +34,13 @@ bool connecting_to_wifi = false;
 WiFiUDP udp;
 const char *udpAddress = RECEIVER_IP; // Replace with your computer's IP address
 const int udpPort = 4210;             // Choose an appropriate port number
+char incomingPacket[255];             // Buffer for incoming packets
+
+// PVT Test
+bool pvtStarted = false;
+float pvtDelay;
+float pvtStartTime;
+float pvtEndTime;
 
 // Operation modes
 enum Mode
@@ -39,10 +48,13 @@ enum Mode
     MODE_SETUP_WIFI,
     MODE_STREAM,
     MODE_DEBUG,
-    MODE_PVT,
 };
 
 Mode currentMode = MODE_SETUP_WIFI;
+
+//////////////////////////////////////////////
+///////////////// SETUP //////////////////////
+//////////////////////////////////////////////
 
 void setup()
 {
@@ -50,16 +62,20 @@ void setup()
     Serial.begin(115200);
     Serial.println("Connected to serial");
 
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+
     mpuWrapper.initialize();
 }
 
+/////////////////////////////////////////////
+///////////////// LOOP //////////////////////
+/////////////////////////////////////////////
+
 void loop()
 {
-
     switch (currentMode)
     {
     case MODE_SETUP_WIFI:
-
         if (!connecting_to_wifi)
         {
             WiFi.disconnect();
@@ -77,13 +93,11 @@ void loop()
         {
             udp.begin(udpPort);
             currentMode = MODE_STREAM;
+            Serial.println(WiFi.localIP().toString());
             led.off();
         }
-
         break;
-
     case MODE_STREAM:
-
         if (WiFi.status() != WL_CONNECTED)
         {
             currentMode = MODE_SETUP_WIFI;
@@ -93,10 +107,28 @@ void loop()
         else
         {
             streamData();
+
+            if (pvtStarted)
+            {
+                if (!digitalRead(BUTTON_PIN))
+                { // Assuming a LOW signal on button press
+                    pvtEndTime = millis();
+                    float reactionTime = pvtEndTime - pvtStartTime - pvtDelay;
+                    sendPVTData(reactionTime);
+                    pvtStarted = false; // Reset PVT
+                    led.off();
+                }
+                else if (millis() - pvtStartTime > pvtDelay)
+                {
+                    led.on(Led::RED);
+                }
+            }
+            else
+            {
+                checkForUDPMessages();
+            }
         }
-
         break;
-
     default:
         break;
     }
@@ -105,7 +137,6 @@ void loop()
 
 void streamData()
 {
-
     static unsigned long lastMPUUpdateTime = 0;
     static unsigned long lastBatteryUpdateTime = 0;
     unsigned long currentMillis = millis();
@@ -145,6 +176,38 @@ void streamData()
         udp.write(buffer, sizeof(buffer));
         udp.endPacket();
     }
+}
+
+void checkForUDPMessages()
+{
+    int packetSize = udp.parsePacket();
+    if (packetSize)
+    {
+        int len = udp.read(incomingPacket, 255);
+        if (len > 0)
+        {
+            incomingPacket[len] = 0; // Null-terminate the string
+        }
+        if (String(incomingPacket) == "PVT")
+        {
+            pvtStarted = true;
+            pvtStartTime = millis();
+            pvtDelay = random(5000, 10000); // Random delay between 2 and 5 seconds
+            led.off();                      // Ensure the LED is off when the PVT starts        }
+        }
+    }
+}
+
+void sendPVTData(float reactionTime)
+{
+    uint8_t messageType = 0x03; // Assuming 0x03 signifies PVT data
+    uint8_t buffer[1 + sizeof(float)];
+    buffer[0] = messageType;
+    memcpy(&buffer[1], &reactionTime, sizeof(reactionTime));
+
+    udp.beginPacket(udpAddress, udpPort);
+    udp.write(buffer, sizeof(buffer));
+    udp.endPacket();
 }
 
 float getBatteryVoltage()

@@ -56,3 +56,19 @@ void Led::off()
     analogWrite(_pinGreen, 0);
     analogWrite(_pinBlue, 0);
 }
+
+void Led::on(LedColor color)
+{
+    switch (color)
+    {
+    case RED:
+        analogWrite(_pinRed, 5);
+        break;
+    case GREEN:
+        analogWrite(_pinGreen, 5);
+        break;
+    case BLUE:
+        analogWrite(_pinBlue, 5);
+        break;
+    }
+}

@@ -17,6 +17,7 @@ public:
     void blink(LedColor color, unsigned long delayTime);
     void update();
     void off();
+    void on(LedColor color);
 
 private:
     int _pinRed, _pinGreen, _pinBlue;

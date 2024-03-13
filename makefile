@@ -1,7 +1,6 @@
 BOARD := esp32:esp32:XIAO_ESP32C3
 PORT := COM10
-SKETCH := fw2/fw2.ino
-# SKETCH := fw_tests/debug_hw/debug_hw.ino
+SKETCH := fw/fw.ino
 BUILD_DIR := build
 
 .PHONY: all compile upload clean serial
